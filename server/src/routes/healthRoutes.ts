@@ -15,12 +15,14 @@ healthRouter.get('/health/db', async (_req, res) => {
     try {
         const data = await pool.query<DatabaseTimeRow>('SELECT NOW() AS database_time');
 
-        if (!data.rows[0]) { res.status(401).json({ error: 'запрос не вернул корректный результат' }) }
+        const row = data.rows[0];
+
+        if (!row) throw new Error('запрос не вернул корректный результат');
 
         const result = {
             status: 'ok',
-            databaseTime: data.rows[0]?.database_time
-        }
+            databaseTime: row?.database_time
+        };
 
         res.status(200).json(result)
     } catch (err) {

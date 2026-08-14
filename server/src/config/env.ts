@@ -7,12 +7,8 @@ if (!databaseUrl) {
   throw new Error('ссылка на базу данных не указана');
 }
 
-if (!Number.isInteger(port) || port <= 1 || port >= 65535) {
+if (!Number.isInteger(port) || port < 1 || port > 65535) {
   throw new Error('порт должен быть в значении от 1 до 65535');
-}
-
-if (!port) {
-  throw new Error('порт не укзаан');
 }
 
 export const env = {
