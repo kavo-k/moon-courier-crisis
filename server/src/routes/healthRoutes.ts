@@ -11,7 +11,7 @@ healthRouter.get('/health', (_req, res) => {
     res.status(200).json({ status: 'ok' });
 })
 
-healthRouter.get('/health/db', async (_req, res) => {
+healthRouter.get('/health/db', async (_req, res, next) => {
     try {
         const data = await pool.query<DatabaseTimeRow>('SELECT NOW() AS database_time');
 
@@ -21,12 +21,12 @@ healthRouter.get('/health/db', async (_req, res) => {
 
         const result = {
             status: 'ok',
-            databaseTime: row?.database_time
+            databaseTime: row.database_time
         };
 
         res.status(200).json(result)
     } catch (err) {
-        res.status(500).json({ error: 'ошибка на стороне сервера' })
+        next(err)
     }
 })
 
