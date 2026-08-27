@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { calculateBatteryCost, calculateDistance, calculateRisk, validateDelivery } from "../src/domain/deliveryRules.js";
+import { calculateBatteryCost, calculateDistance, calculateRisk, validateDelivery, } from "../src/domain/deliveryRules.js";
 
 test("calculates distance using the Pythagorean theorem", () => {
     const distance = calculateDistance(
@@ -61,7 +61,9 @@ test('validate delivery', () => {
         orderWeight: 42,
         roverCapacity: 40,
         roverBattery: 80,
-        batteryCost: 40
+        batteryCost: 40,
+        gameStatus: 'ACTIVE',
+        deliveriesToday: 1
     })
 
     const validate2 = validateDelivery({
@@ -70,7 +72,9 @@ test('validate delivery', () => {
         orderWeight: 19,
         roverCapacity: 20,
         roverBattery: 31,
-        batteryCost: 48
+        batteryCost: 48,
+        gameStatus: 'ACTIVE',
+        deliveriesToday: 1
     })
 
     const validate3 = validateDelivery({
@@ -79,7 +83,9 @@ test('validate delivery', () => {
         orderWeight: 19,
         roverCapacity: 20,
         roverBattery: 100,
-        batteryCost: 48
+        batteryCost: 48,
+        gameStatus: 'ACTIVE',
+        deliveriesToday: 1
     })
 
     const validate4 = validateDelivery({
@@ -88,7 +94,9 @@ test('validate delivery', () => {
         orderWeight: 19,
         roverCapacity: 20,
         roverBattery: 100,
-        batteryCost: 48
+        batteryCost: 48,
+        gameStatus: 'ACTIVE',
+        deliveriesToday: 1
     })
 
     const validate5 = validateDelivery({
@@ -97,7 +105,31 @@ test('validate delivery', () => {
         orderWeight: 19,
         roverCapacity: 20,
         roverBattery: 100,
-        batteryCost: 48
+        batteryCost: 48,
+        gameStatus: 'ACTIVE',
+        deliveriesToday: 1
+    })
+
+    const validate6 = validateDelivery({
+        orderStatus: 'AVAILABLE',
+        roverStatus: 'AVAILABLE',
+        orderWeight: 19,
+        roverCapacity: 20,
+        roverBattery: 100,
+        batteryCost: 48,
+        gameStatus: 'WON',
+        deliveriesToday: 1
+    })
+
+    const validate7 = validateDelivery({
+        orderStatus: 'AVAILABLE',
+        roverStatus: 'AVAILABLE',
+        orderWeight: 19,
+        roverCapacity: 20,
+        roverBattery: 100,
+        batteryCost: 48,
+        gameStatus: 'ACTIVE',
+        deliveriesToday: 3
     })
 
     assert.deepEqual(validate1, { possible: false, problems: [{ code: 'CAPACITY_EXCEEDED', message: `Груз превышает допустимую вместимость на 2 кг.` }] });
@@ -111,6 +143,16 @@ test('validate delivery', () => {
     assert.ok(
         validate5.problems.some(
             (problem) => problem.code === "ORDER_NOT_AVAILABLE",
+        ),
+    );
+    assert.ok(
+        validate6.problems.some(
+            (problem) => problem.code === "GAME_NOT_ACTIVE",
+        ),
+    );
+    assert.ok(
+        validate7.problems.some(
+            (problem) => problem.code === "DAILY_LIMIT_REACHED",
         ),
     );
 

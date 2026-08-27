@@ -1,4 +1,5 @@
 import type {
+  GameStatus,
   OrderStatus,
   RoverStatus,
   Terrain,
@@ -7,6 +8,7 @@ import type {
 const DISTANCE_SCALE = 1;
 const BATTERY_PER_KM = 0.55;
 const MAX_RISK = 95;
+export const MAX_DELIVERIES_PER_DAY = 3;
 
 const TERRAIN_RULES = {
   SAFE: {
@@ -87,13 +89,17 @@ export type DeliveryValidationInput = {
   roverCapacity: number;
   roverBattery: number;
   batteryCost: number;
+  gameStatus: GameStatus;
+  deliveriesToday: number;
 };
 
 export type DeliveryProblemCode =
   | "ORDER_NOT_AVAILABLE"
   | "ROVER_NOT_AVAILABLE"
   | "CAPACITY_EXCEEDED"
-  | "INSUFFICIENT_BATTERY";
+  | "INSUFFICIENT_BATTERY"
+  | "GAME_NOT_ACTIVE"
+  | "DAILY_LIMIT_REACHED";
 
 export type DeliveryProblem = {
   code: DeliveryProblemCode;
@@ -110,13 +116,17 @@ export function validateDelivery(
 ): DeliveryValidation {
   const problems: DeliveryProblem[] = [];
 
-  if (input.orderStatus !== 'AVAILABLE') { problems.push({code: 'ORDER_NOT_AVAILABLE', message:'Заказ недоступен.'}) }
+  if (input.gameStatus !== 'ACTIVE') { problems.push({ code:'GAME_NOT_ACTIVE', message: 'Игра завершена.'})}
 
-  if (input.roverStatus !== 'AVAILABLE') { problems.push({code: 'ROVER_NOT_AVAILABLE', message:'Ровер недоступен.'}) }
+  if (input.deliveriesToday >= MAX_DELIVERIES_PER_DAY) { problems.push({ code:'DAILY_LIMIT_REACHED', message: 'Достигнут дневной лимит доставок.'})}
 
-  if (input.orderWeight > input.roverCapacity) { problems.push({code: 'CAPACITY_EXCEEDED', message:`Груз превышает допустимую вместимость на ${input.orderWeight - input.roverCapacity} кг.`}) }
+  if (input.orderStatus !== 'AVAILABLE') { problems.push({ code: 'ORDER_NOT_AVAILABLE', message: 'Заказ недоступен.' }) }
 
-  if (input.batteryCost > input.roverBattery) { problems.push({code: 'INSUFFICIENT_BATTERY', message:`Недостаточный заряд батареи, Требуется: ${input.batteryCost}%. Доступно: ${input.roverBattery}%.`}) }
+  if (input.roverStatus !== 'AVAILABLE') { problems.push({ code: 'ROVER_NOT_AVAILABLE', message: 'Ровер недоступен.' }) }
+
+  if (input.orderWeight > input.roverCapacity) { problems.push({ code: 'CAPACITY_EXCEEDED', message: `Груз превышает допустимую вместимость на ${input.orderWeight - input.roverCapacity} кг.` }) }
+
+  if (input.batteryCost > input.roverBattery) { problems.push({ code: 'INSUFFICIENT_BATTERY', message: `Недостаточный заряд батареи, Требуется: ${input.batteryCost}%. Доступно: ${input.roverBattery}%.` }) }
 
   return {
     possible: problems.length === 0,
