@@ -1,8 +1,8 @@
-import type { DeliveryPreviewRequest } from "../types/delivery.js";
+import type { DeliverySelectionRequest } from "../types/delivery.js";
 
-export function isDeliveryPreviewRequest(
+export function isDeliverySelectionRequest(
   value: unknown
-): value is DeliveryPreviewRequest {
+): value is DeliverySelectionRequest {
 
   if (typeof value !== "object" || value === null) {
     return false;

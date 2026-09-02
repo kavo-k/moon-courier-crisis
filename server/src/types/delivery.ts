@@ -1,7 +1,7 @@
 import type { DeliveryProblem } from "../domain/deliveryRules.js";
 import type { Terrain } from "./game.js";
 
-export type DeliveryPreviewRequest = {
+export type DeliverySelectionRequest = {
   orderId: number;
   roverId: number;
 };
@@ -28,3 +28,24 @@ export type DeliveryPreview = {
   possible: boolean;
   problems: DeliveryProblem[];
 };
+
+export type StartedDelivery = {
+  id: number;
+  orderId: number;
+  roverId: number;
+  distance: number;
+  batteryCost: number;
+  finalRisk: number;
+  status: "IN_PROGRESS";
+  startedAt: Date;
+};
+
+export type LaunchDeliveryResult =
+  | {
+    launched: true;
+    delivery: StartedDelivery;
+  }
+  | {
+    launched: false;
+    problems: DeliveryProblem[];
+  };
