@@ -1,7 +1,8 @@
 import type { Request, Response, NextFunction } from "express";
 import { HttpError } from "../errors/httpError.js";
 import { isDeliverySelectionRequest } from "../schemas/deliverySchemas.js";
-import { createDeliveryPreview, launchDelivery } from "../services/deliveryService.js";
+import { completeDelivery, createDeliveryPreview, launchDelivery } from "../services/deliveryService.js";
+import type { DeliveryOutcome } from "../domain/deliveryRules.js";
 
 export async function deliveryPreview(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -34,6 +35,24 @@ export async function launchDeliveryController(req: Request, res: Response, next
         }
 
         return res.status(201).json(result.delivery)
+    } catch (err) {
+        next(err)
+    }
+}
+
+export async function completeDeliveryController(req: Request, res: Response, next: NextFunction) {
+    try {
+        const id = Number(req.params.id)
+
+        if (!Number.isSafeInteger(id) || id <= 0) { throw new HttpError(400, 'Недопустимый ID доставки') }
+
+        const result = await completeDelivery(id);
+
+        if (!result) {
+            throw new HttpError(409, "невозможно завершить доставку")
+        }
+
+        return res.status(200).json(result)
     } catch (err) {
         next(err)
     }

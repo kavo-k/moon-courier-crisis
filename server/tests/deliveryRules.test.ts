@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { calculateBatteryCost, calculateDistance, calculateRisk, validateDelivery, } from "../src/domain/deliveryRules.js";
+import { calculateBatteryCost, calculateDeliveryEffects, calculateDistance, calculateRisk, resolveDeliveryOutcome, validateDelivery, } from "../src/domain/deliveryRules.js";
 
 test("calculates distance using the Pythagorean theorem", () => {
     const distance = calculateDistance(
@@ -158,3 +158,76 @@ test('validate delivery', () => {
 
 
 })
+
+
+test('resolveDeliveryOutcome', () => {
+    const calculate1 = resolveDeliveryOutcome(20, 50);
+    const calculate2 = resolveDeliveryOutcome(20, 1);
+    const calculate3 = resolveDeliveryOutcome(20, 6);
+    const calculate4 = resolveDeliveryOutcome(20, 15);
+    
+    assert.equal(calculate1, "SUCCESS");
+    assert.equal(calculate2, "DELIVERY_FAILED");
+    assert.equal(calculate3, "MINOR_DAMAGE");
+    assert.equal(calculate4, "SOLAR_STORM");
+    assert.equal(resolveDeliveryOutcome(0, 0), "SUCCESS");
+})
+
+
+test('calculateDeliveryEffects', () => {
+    const result1 = calculateDeliveryEffects(
+        "SUCCESS",
+        100,
+        20,
+        40,
+    );
+
+    assert.deepEqual(result1, {
+        rewardReceived: 100,
+        scoreGained: 140,
+        ratingChange: 2,
+        extraBatteryCost: 0,
+    });
+
+    const result2 = calculateDeliveryEffects(
+        "SOLAR_STORM",
+        100,
+        20,
+        40,
+    );
+
+    assert.deepEqual(result2, {
+        rewardReceived: 100,
+        scoreGained: 140,
+        ratingChange: 0,
+        extraBatteryCost: 10,
+    });
+
+    const result3 = calculateDeliveryEffects(
+        "MINOR_DAMAGE",
+        100,
+        20,
+        40,
+    );
+
+    assert.deepEqual(result3, {
+        rewardReceived: 75,
+        scoreGained: 95,
+        ratingChange: -5,
+        extraBatteryCost: 0,
+    });
+
+    const result4 = calculateDeliveryEffects(
+        "DELIVERY_FAILED",
+        100,
+        20,
+        40,
+    );
+
+    assert.deepEqual(result4, {
+        rewardReceived: 0,
+        scoreGained: 0,
+        ratingChange: -10,
+        extraBatteryCost: 0,
+    });
+});

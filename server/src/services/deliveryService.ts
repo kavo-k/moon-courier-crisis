@@ -1,8 +1,8 @@
 import { pool } from "../db/pool.js";
-import { calculateBatteryCost, calculateDistance, calculateRisk, validateDelivery } from "../domain/deliveryRules.js";
+import { calculateBatteryCost, calculateDeliveryEffects, calculateDistance, calculateRisk, resolveDeliveryOutcome, validateDelivery } from "../domain/deliveryRules.js";
 import { HttpError } from "../errors/httpError.js";
-import type { DeliveryPreview, LaunchDeliveryResult, StartedDelivery } from "../types/delivery.js";
-import type { GameState, Order, Rover } from "../types/game.js";
+import type { CompleteDeliveryResult, DeliveryPreview, LaunchDeliveryResult, StartedDelivery } from "../types/delivery.js";
+import type { Delivery, GameState, Order, Rover } from "../types/game.js";
 
 function buildDeliveryPreview(
     game: GameState,
@@ -116,7 +116,6 @@ export async function launchDelivery(
       final_risk AS "finalRisk",
       status,
       started_at AS "startedAt"`, [preview.order.id, preview.rover.id, preview.distance, preview.batteryCost, preview.risk])
-
         const delivery = deliveryResult.rows[0];
 
         if (!delivery) { throw new Error("Заказ не создан"); }
@@ -144,6 +143,109 @@ export async function launchDelivery(
         await client.query("COMMIT");
 
         return { launched: true, delivery }
+    } catch (err) {
+        await client.query("ROLLBACK");
+        throw err
+    } finally {
+        await client.release()
+    }
+}
+
+
+export async function completeDelivery(
+    deliveryId: number,
+): Promise<CompleteDeliveryResult> {
+    const client = await pool.connect();
+    try {
+        await client.query("BEGIN");
+
+        const gameResult = await client.query<GameState>('SELECT id, day, money, score, rating, deliveries_today AS "deliveriesToday", status FROM game_state WHERE id = 1 FOR UPDATE');
+        const deliveryResult = await client.query<Delivery>(`SELECT id,
+            order_id AS "orderId",
+            rover_id AS "roverId",
+            distance,
+            battery_cost AS "batteryCost",
+            final_risk AS "finalRisk",
+            status,
+            started_at AS "startedAt"
+            FROM deliveries WHERE id = $1 FOR UPDATE`, [deliveryId]);
+
+        const game = gameResult.rows[0];
+        const deliveryData = deliveryResult.rows[0];
+
+        if (!game) { throw new Error("Game state not found"); }
+        if (!deliveryData) { throw new HttpError(404, "Delivery not found"); };
+        if (deliveryData.status !== "IN_PROGRESS") { throw new HttpError(409, "Доставка не в процессе") };
+
+        const orderResult = await client.query<Order>(`SELECT id, destination, x, y, weight, reward, urgency, base_risk AS "baseRisk", terrain, status, expires_day AS "expiresDay" FROM orders WHERE id = $1 FOR UPDATE`, [deliveryData.orderId]);
+        const roverResult = await client.query<Rover>(`SELECT id, name, battery, capacity, status, x, y FROM rovers WHERE id = $1 FOR UPDATE`, [deliveryData.roverId]);
+
+        const orderData = orderResult.rows[0];
+        const roverData = roverResult.rows[0];
+
+        if (!orderData) { throw new HttpError(404, "Order not found"); };
+        if (!roverData) { throw new HttpError(404, "Rover not found"); };
+
+        if (orderData.status !== "IN_DELIVERY") { throw new HttpError(409, "Заказ не в процессе") };
+        if (roverData.status !== "DELIVERING") { throw new HttpError(409, "Ровер не в процессе") };
+
+        const roll = Math.random() * 100;
+
+        const outcome = resolveDeliveryOutcome(deliveryData.finalRisk, roll)
+
+        const effects = calculateDeliveryEffects(outcome, orderData.reward, deliveryData.finalRisk, deliveryData.batteryCost)
+
+        const requestedBattery = deliveryData.batteryCost + effects.extraBatteryCost;
+
+        const batterySpent = Math.min(roverData.battery, requestedBattery);
+        const remainingBattery = roverData.battery - batterySpent;
+
+        const deliveryStatus =
+            outcome === "DELIVERY_FAILED" ? "FAILED" : "COMPLETED";
+
+        const orderStatus =
+            outcome === "DELIVERY_FAILED" ? "FAILED" : "DELIVERED";
+
+        await client.query('UPDATE deliveries SET status = $1, outcome = $2, reward_received = $3, battery_cost = $4, completed_at = NOW()  WHERE id = $5', [deliveryStatus, outcome, effects.rewardReceived, batterySpent, deliveryData.id])
+        await client.query('UPDATE orders SET status = $1 WHERE id = $2', [orderStatus, orderData.id])
+        const updateRover = await client.query<CompleteDeliveryResult["rover"]>('UPDATE rovers SET battery = $1, status = $2, x = $3, y = $4 WHERE id = $5 RETURNING id, battery, status, x, y', [remainingBattery, "AVAILABLE", orderData.x, orderData.y, roverData.id]);
+        const updateGame = await client.query<CompleteDeliveryResult["game"]>(`UPDATE game_state
+            SET
+              money = money + $1,
+              score = score + $2,
+              rating = LEAST(100, GREATEST(0, rating + $3))
+            WHERE id = $4
+            RETURNING money, score, rating`, [effects.rewardReceived, effects.scoreGained, effects.ratingChange, game.id]);
+        await client.query(`INSERT INTO events (
+            delivery_id,
+            type,
+            message
+        ) VALUES ($1, $2, $3)
+        `, [deliveryData.id, outcome, `${roverData.name} arrived at ${orderData.destination}`]);
+
+        const resultRover = updateRover.rows[0];
+        const resultGame = updateGame.rows[0];
+
+        if (!resultRover) { throw new HttpError(404, "Rover not found"); };
+        if (!resultGame) { throw new Error("Game state not found"); }
+
+        const data: CompleteDeliveryResult = {
+            deliveryId: deliveryData.id,
+            outcome,
+            deliveryStatus: deliveryStatus,
+            orderStatus: orderStatus,
+            rewardReceived: effects.rewardReceived,
+            scoreGained: effects.scoreGained,
+            ratingChange: effects.ratingChange,
+            batterySpent: batterySpent,
+            rover: resultRover,
+            game: resultGame
+
+        }
+
+        await client.query("COMMIT");
+
+        return data
     } catch (err) {
         await client.query("ROLLBACK");
         throw err

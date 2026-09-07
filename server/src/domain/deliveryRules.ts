@@ -116,9 +116,9 @@ export function validateDelivery(
 ): DeliveryValidation {
   const problems: DeliveryProblem[] = [];
 
-  if (input.gameStatus !== 'ACTIVE') { problems.push({ code:'GAME_NOT_ACTIVE', message: 'Игра завершена.'})}
+  if (input.gameStatus !== 'ACTIVE') { problems.push({ code: 'GAME_NOT_ACTIVE', message: 'Игра завершена.' }) }
 
-  if (input.deliveriesToday >= MAX_DELIVERIES_PER_DAY) { problems.push({ code:'DAILY_LIMIT_REACHED', message: 'Достигнут дневной лимит доставок.'})}
+  if (input.deliveriesToday >= MAX_DELIVERIES_PER_DAY) { problems.push({ code: 'DAILY_LIMIT_REACHED', message: 'Достигнут дневной лимит доставок.' }) }
 
   if (input.orderStatus !== 'AVAILABLE') { problems.push({ code: 'ORDER_NOT_AVAILABLE', message: 'Заказ недоступен.' }) }
 
@@ -132,4 +132,66 @@ export function validateDelivery(
     possible: problems.length === 0,
     problems
   };
+}
+
+export type DeliveryOutcome =
+  | "SUCCESS"
+  | "SOLAR_STORM"
+  | "MINOR_DAMAGE"
+  | "DELIVERY_FAILED";
+
+export function resolveDeliveryOutcome(
+  finalRisk: number,
+  roll: number,
+): DeliveryOutcome {
+  if (roll < 0 || roll >= 100 || !Number.isFinite(roll)) {
+    throw new Error('недопустимое значение')
+  }
+  if (
+    !Number.isFinite(finalRisk) ||
+    finalRisk < 0 ||
+    finalRisk > MAX_RISK
+  ) {
+    throw new Error(`Риск должен быть от 0 до ${MAX_RISK}`);
+  }
+  if (roll >= finalRisk) { return "SUCCESS" }
+  if (roll < finalRisk * 0.20) { return "DELIVERY_FAILED" }
+  if (roll < finalRisk * 0.55) { return "MINOR_DAMAGE" }
+  return "SOLAR_STORM"
+}
+
+export type DeliveryEffects = {
+  rewardReceived: number;
+  scoreGained: number;
+  ratingChange: number;
+  extraBatteryCost: number;
+};
+
+export function calculateDeliveryEffects(
+  outcome: DeliveryOutcome,
+  reward: number,
+  finalRisk: number,
+  baseBatteryCost: number,
+): DeliveryEffects {
+  if (outcome === "SUCCESS") {
+    const scoreGained = reward + finalRisk * 2
+    return { rewardReceived: reward, scoreGained: scoreGained, ratingChange: +2, extraBatteryCost: 0 }
+  }
+
+  if (outcome === "SOLAR_STORM") {
+    const scoreGained = reward + finalRisk * 2
+    return { rewardReceived: reward, scoreGained: scoreGained, ratingChange: 0, extraBatteryCost: Math.ceil(baseBatteryCost * 0.25) }
+  }
+
+  if (outcome === "MINOR_DAMAGE") {
+    const rewardReceived = Math.floor(reward * 0.75);
+    const scoreGained = rewardReceived + finalRisk;
+    return { rewardReceived: rewardReceived, scoreGained: scoreGained, ratingChange: -5, extraBatteryCost: 0 }
+  }
+
+  if (outcome === "DELIVERY_FAILED") {
+    return { rewardReceived: 0, scoreGained: 0, ratingChange: -10, extraBatteryCost: 0 }
+  }
+
+  throw new Error('Ошибка calculateDeliveryEffects');
 }

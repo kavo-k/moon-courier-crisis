@@ -1,4 +1,4 @@
-import type { DeliveryProblem } from "../domain/deliveryRules.js";
+import type { DeliveryOutcome, DeliveryProblem } from "../domain/deliveryRules.js";
 import type { Terrain } from "./game.js";
 
 export type DeliverySelectionRequest = {
@@ -49,3 +49,28 @@ export type LaunchDeliveryResult =
     launched: false;
     problems: DeliveryProblem[];
   };
+
+  export type CompleteDeliveryResult = {
+  deliveryId: number;
+  outcome: DeliveryOutcome;
+  deliveryStatus: "COMPLETED" | "FAILED";
+  orderStatus: "DELIVERED" | "FAILED";
+  rewardReceived: number;
+  scoreGained: number;
+  ratingChange: number;
+  batterySpent: number;
+
+  rover: {
+    id: number;
+    battery: number;
+    status: "AVAILABLE";
+    x: number;
+    y: number;
+  };
+
+  game: {
+    money: number;
+    score: number;
+    rating: number;
+  };
+};

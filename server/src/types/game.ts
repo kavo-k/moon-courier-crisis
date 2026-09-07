@@ -35,6 +35,7 @@ export type Rover = {
     x: number,
     y: number
 }
+
 export type Order = {
     id: number,
     destination: string,
@@ -47,6 +48,17 @@ export type Order = {
     terrain: Terrain,
     status: OrderStatus,
     expiresDay: number
+}
+
+export type Delivery = {
+    id: number;
+    orderId: number;
+    roverId: number;
+    distance: number;
+    batteryCost: number;
+    finalRisk: number;
+    status: "IN_PROGRESS" | "COMPLETED" | "FAILED";
+    startedAt: Date;
 }
 
 export type GameSnapshot = {
