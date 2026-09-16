@@ -66,3 +66,9 @@ export type GameSnapshot = {
     rovers: Rover[];
     orders: Order[];
 };
+
+export type EndDayResult = {
+    game: GameState;
+    expiredOrderIds: number[];
+    createdOrderIds: number[];
+};
