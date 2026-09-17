@@ -1,28 +1,58 @@
 import { pool } from "../db/pool.js";
-import type { Delivery, EndDayResult, GameSnapshot, GameState, Rover, Order } from "../types/game.js";
+import type { Delivery, EndDayResult, GameSnapshot, GameState, Rover, Order, GameEvent, GameStats } from "../types/game.js";
 import { HttpError } from "../errors/httpError.js";
 import { calculateExpiresDay, calculateRechargedBattery, determineFinalStatus, TOTAL_DAYS } from "../domain/gameRules.js";
 import { BASE_POSITION } from "../domain/deliveryRules.js";
 import { DAILY_ORDER_TEMPLATES } from "../domain/orderTemplates.js";
 
 export async function getGameSnapshot(): Promise<GameSnapshot> {
+    const client = await pool.connect();
 
-    const [gameResult, roversResult, ordersResult] = await Promise.all([
-        pool.query<GameState>('SELECT id, day, money, score, rating, deliveries_today AS "deliveriesToday", status FROM game_state WHERE id = 1'),
-        pool.query<Rover>('SELECT id, name, battery, capacity, status, x, y FROM rovers ORDER BY id'),
-        pool.query<Order>('SELECT id, destination, x, y, weight, reward, urgency, base_risk AS "baseRisk", terrain, status, expires_day AS "expiresDay" FROM orders ORDER BY id')
-    ]);
+    try {
+        await client.query("BEGIN");
 
-    const game = gameResult.rows[0];
-    const rovers = roversResult.rows;
-    const orders = ordersResult.rows;
+        const gameResult = await client.query<GameState>('SELECT id, day, money, score, rating, deliveries_today AS "deliveriesToday", status FROM game_state WHERE id = 1 FOR SHARE');
+        const game = gameResult.rows[0];
 
-    if (!game) { throw new Error("Game state not found"); }
+        if (!game) { throw new Error("Game state not found"); }
 
-    return {
-        game,
-        rovers,
-        orders
+        const roversResult = await client.query<Rover>('SELECT id, name, battery, capacity, status, x, y FROM rovers ORDER BY id');
+        const ordersResult = await client.query<Order>('SELECT id, destination, x, y, weight, reward, urgency, base_risk AS "baseRisk", terrain, status, expires_day AS "expiresDay" FROM orders ORDER BY id');
+        const activeDeliveriesResult = await client.query<Delivery>(`SELECT id, order_id AS "orderId", rover_id AS "roverId", distance, battery_cost AS "batteryCost", final_risk AS "finalRisk", status, started_at AS "startedAt" FROM deliveries WHERE status = 'IN_PROGRESS' ORDER BY id`);
+        const recentEventsResult = await client.query<GameEvent>(`SELECT id, delivery_id AS "deliveryId", type, message, created_at AS "createdAt" FROM events ORDER BY created_at DESC, id DESC LIMIT 20`);
+
+        const rovers = roversResult.rows;
+        const orders = ordersResult.rows;
+        const activeDeliveries = activeDeliveriesResult.rows;
+        const recentEvents = recentEventsResult.rows;
+
+        const successfulDeliveries = orders.filter(delivery => delivery.status === "DELIVERED").length
+        const failedDeliveries = orders.filter(delivery => delivery.status === "FAILED").length
+        const expiredOrders = orders.filter(delivery => delivery.status === "EXPIRED").length
+
+
+        const stats: GameStats = {
+            successfulDeliveries,
+            failedDeliveries,
+            expiredOrders
+        }
+
+        const GameSnapshot = {
+            game,
+            rovers,
+            orders,
+            activeDeliveries,
+            recentEvents,
+            stats
+        }
+
+        await client.query("COMMIT");
+        return GameSnapshot
+    } catch (err) {
+        await client.query("ROLLBACK");
+        throw err
+    } finally {
+        await client.release()
     }
 }
 
@@ -56,7 +86,7 @@ export async function endDay(
         if (game.day === TOTAL_DAYS) {
             const result = determineFinalStatus(game.money, game.rating);
 
-            await client.query(`UPDATE game_state SET status = $1 WHERE id = @2`, [result, game.id]);
+            await client.query(`UPDATE game_state SET status = $1 WHERE id = $2`, [result, game.id]);
         } else {
             const nextDay = game.day + 1;
 
@@ -100,13 +130,13 @@ export async function endDay(
                 type,
                 message
             ) VALUES ($1, $2)
-            `, ["DAY_STARTED", `День ${game.day + 1} начат. просроченных заказы: ${expiredOrders.length}. Новых заказов: ${createdOrders.length}`]);
+            `, ["DAY_STARTED", `День ${game.day + 1} начат. просроченных заказов: ${expiredOrders.length}. Новых заказов: ${createdOrders.length}`]);
         } else {
             await client.query(`INSERT INTO events (
                     type,
                     message
                 ) VALUES ($1, $2)
-                `, ["GAME_FINISHED", `День ${TOTAL_DAYS} закончен. просроченных заказы: ${expiredOrders.length}. Новых заказов: ${createdOrders.length}. Результат: ${updatedGame.status == "WON" ? "Победа" : "Поражение"}`]);
+                `, ["GAME_FINISHED", `День ${TOTAL_DAYS} закончен. просроченных заказов: ${expiredOrders.length}. Новых заказов: ${createdOrders.length}. Результат: ${updatedGame.status == "WON" ? "Победа" : "Поражение"}`]);
         }
 
         await client.query("COMMIT");

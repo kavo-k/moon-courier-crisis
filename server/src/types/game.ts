@@ -65,10 +65,27 @@ export type GameSnapshot = {
     game: GameState;
     rovers: Rover[];
     orders: Order[];
+    activeDeliveries: Delivery[];
+    recentEvents: GameEvent[];
+    stats: GameStats;
 };
 
 export type EndDayResult = {
     game: GameState;
     expiredOrderIds: number[];
     createdOrderIds: number[];
+};
+
+export type GameEvent = {
+    id: number;
+    deliveryId: number | null;
+    type: string;
+    message: string;
+    createdAt: Date;
+};
+
+export type GameStats = {
+    successfulDeliveries: number;
+    failedDeliveries: number;
+    expiredOrders: number;
 };
