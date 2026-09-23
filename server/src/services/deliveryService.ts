@@ -138,7 +138,7 @@ export async function launchDelivery(
             type,
             message
         ) VALUES ($1, $2, $3)
-        `, [delivery.id, "DELIVERY_STARTED", `${roverData.name} departed for ${orderData.destination}`]);
+        `, [delivery.id, "DELIVERY_STARTED", `${roverData.name} отправился на ${orderData.destination}`]);
 
         await client.query("COMMIT");
 
@@ -221,7 +221,7 @@ export async function completeDelivery(
             type,
             message
         ) VALUES ($1, $2, $3)
-        `, [deliveryData.id, outcome, `${roverData.name} arrived at ${orderData.destination}`]);
+        `, [deliveryData.id, outcome, `${roverData.name} прибыл в ${orderData.destination}`]);
 
         const resultRover = updateRover.rows[0];
         const resultGame = updateGame.rows[0];

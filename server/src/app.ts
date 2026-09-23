@@ -19,6 +19,7 @@ app.use((error: unknown, _request: Request, response: Response, _next: NextFunct
     if (error instanceof HttpError) {
         return response.status(error.statusCode).json({ error: error.message })
     }
+    
     console.error(error);
     response.status(500).json({ error: 'внутренняя ошибка сервера.' })
 });

@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import { endDay, getGameSnapshot } from "../services/gameService.js";
+import { endDay, getGameSnapshot, resetGame } from "../services/gameService.js";
 import { HttpError } from "../errors/httpError.js";
 import { TOTAL_DAYS } from "../domain/gameRules.js";
 
@@ -29,5 +29,15 @@ export async function endDayController(req: Request, res: Response, next: NextFu
         return res.status(200).json(data);
     } catch (err) {
         next(err);
+    }
+}
+
+export async function resetGameController(_req: Request, res: Response, next: NextFunction) {
+    try {
+        const data = await resetGame()
+        res.status(200).json({ game: data });
+    }
+    catch (err) {
+        next(err)
     }
 }

@@ -4,6 +4,7 @@ import { HttpError } from "../errors/httpError.js";
 import { calculateExpiresDay, calculateRechargedBattery, determineFinalStatus, TOTAL_DAYS } from "../domain/gameRules.js";
 import { BASE_POSITION } from "../domain/deliveryRules.js";
 import { DAILY_ORDER_TEMPLATES } from "../domain/orderTemplates.js";
+import { insertInitialRoversAndOrders } from "../db/initialData.js";
 
 export async function getGameSnapshot(): Promise<GameSnapshot> {
     const client = await pool.connect();
@@ -148,3 +149,62 @@ export async function endDay(
         await client.release()
     }
 };
+
+export async function resetGame(): Promise<GameState> {
+    const client = await pool.connect();
+
+    try {
+        await client.query("BEGIN");
+
+        const gameResult = await client.query<GameState>(`SELECT id, day, money, score, rating, deliveries_today AS "deliveriesToday", status FROM game_state WHERE id = 1 FOR UPDATE`);
+        const game = gameResult.rows[0];
+
+        if (!game) { throw new Error("Game state not found"); }
+
+        await client.query(`DELETE FROM events`);
+        await client.query(`DELETE FROM deliveries`);
+        await client.query(`DELETE FROM orders`);
+        await client.query(`DELETE FROM rovers`);
+
+        const gameStateResult = await client.query<GameState>(`UPDATE game_state
+        SET
+            day = 1,
+            money = 0,
+            score = 0,
+            rating = 100,
+            deliveries_today = 0,
+            status = 'ACTIVE'
+        WHERE id = 1
+        RETURNING id, day, money, score, rating, deliveries_today AS "deliveriesToday", status`);
+
+        const gameState = gameStateResult.rows[0];
+
+        if (!gameState) { throw new Error("Game state not found"); }
+
+        await insertInitialRoversAndOrders(client);
+
+        await client.query(`INSERT INTO events (
+            type,
+            message
+        ) VALUES ($1, $2)
+        `, ["RESET_GAME", `Начата новая игра`]);
+
+        const data: GameState = {
+            id: gameState.id,
+            day: gameState.day,
+            money: gameState.money,
+            score: gameState.score,
+            rating: gameState.rating,
+            deliveriesToday: gameState.deliveriesToday,
+            status: gameState.status
+        }
+
+        await client.query('COMMIT');
+        return data
+    } catch (err) {
+        await client.query("ROLLBACK");
+        throw err
+    } finally {
+        await client.release()
+    }
+}
