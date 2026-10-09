@@ -1,11 +1,28 @@
 import './App.css'
 import { useQuery } from '@tanstack/react-query'
 import { getGameSnapshot } from './api/game'
+import { useState } from 'react'
+import { getDeliveryPreview } from './api/delivery'
+import { DeliveryPreview } from './components/DeliveryPreview'
 
 function App() {
   const gameQuery = useQuery({
     queryKey: ['game'],
     queryFn: getGameSnapshot,
+  })
+
+  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null)
+  const [selectedRoverId, setSelectedRoverId] = useState<number | null>(null)
+  console.log(selectedOrderId);
+  console.log(selectedRoverId);
+
+  const getDelivery = useQuery({
+    queryKey: ['delivery-preview', selectedOrderId, selectedRoverId],
+    enabled: selectedOrderId !== null && selectedRoverId !== null,
+    queryFn: async () => {
+      if (selectedOrderId === null || selectedRoverId === null) { throw new Error('Заказ или Ровер не были выбраны'); }
+      return await getDeliveryPreview({ orderId: selectedOrderId, roverId: selectedRoverId })
+    }
   })
 
   if (gameQuery.isPending) {
@@ -67,6 +84,33 @@ function App() {
           <p className="metric-value">{gameQuery.data.game.rating}<span className="metric-unit">%</span></p>
         </div>
       </section>
+      <section className="panel preview-panel" aria-labelledby="preview-title">
+        <header className="panel-header">
+          <div><span className="eyebrow">Подготовка маршрута</span><h2 id="preview-title">Расчёт доставки</h2></div>
+        </header>
+        <div className="preview-body" aria-live="polite">
+
+        {selectedOrderId === null || selectedRoverId === null ? (
+          <p className="preview-hint">Выбери заказ и ровер</p>
+        ) : getDelivery.isFetching ? (
+          <p className="preview-hint" role="status">Рассчитываем маршрут…</p>
+        ) : getDelivery.isError ? (
+          <div className="preview-error" role="alert">
+            <p>{getDelivery.error.message}</p>
+
+            <button
+              className="retry-button"
+              type="button"
+              onClick={() => getDelivery.refetch()}
+            >
+              Повторить
+            </button>
+          </div>
+        ) : getDelivery.isSuccess ? (
+          <DeliveryPreview preview={getDelivery.data} />
+        ) : null}
+        </div>
+      </section>
       <div className="dashboard-grid">
         <section className="panel" aria-labelledby="orders-title">
           <header className="panel-header">
@@ -77,8 +121,9 @@ function App() {
             {gameQuery.data.orders
               .filter((order) => order.status === 'AVAILABLE')
               .map((order) => (
-                <article className="order-card" key={order.id}>
+                <article data-selected={selectedOrderId === order.id} className="order-card" key={order.id}>
                   <div className="card-heading">
+                    <button className="select-button" aria-pressed={selectedOrderId === order.id} type='button' onClick={() => { setSelectedOrderId(order.id) }}>Выбрать</button>
                     <h3>{order.destination}</h3>
                     <span className="badge urgency-badge" data-urgency={order.urgency}>{order.urgency}</span>
                   </div>
@@ -100,6 +145,7 @@ function App() {
             {gameQuery.data.rovers.map((rover) => (
               <article className="rover-card" key={rover.id}>
                 <div className="card-heading">
+                  <button className="select-button" aria-pressed={selectedOrderId === rover.id} type='button' onClick={() => { setSelectedRoverId(rover.id) }}>Выбрать</button>
                   <h3>{rover.name}</h3>
                   <span className="badge rover-status" data-status={rover.status}>{rover.status}</span>
                 </div>

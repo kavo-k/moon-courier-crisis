@@ -75,6 +75,42 @@ h1 { margin-top: 6px; font-size: clamp(23px, 3vw, 34px); font-weight: 650; lette
 .card-details dd { font: 18px var(--mono); }
 .card-details dd span { color: var(--muted); font-size: 13px; }
 .reward-value { color: var(--accent); }
+.card-heading { flex-wrap: wrap; gap: 10px; }
+.card-heading h3 { order: 0; flex: 1 1 100px; }
+.card-heading .badge { order: 1; }
+.select-button {
+  order: 2;
+  padding: 6px 10px;
+  border: 1px solid #49616f;
+  border-radius: 5px;
+  background: transparent;
+  color: #c1cdd8;
+  font-size: 12px;
+  line-height: 1.3;
+  cursor: pointer;
+  transition: color .15s, background .15s, border-color .15s;
+}
+.select-button:hover { border-color: var(--accent); color: var(--accent); }
+.select-button[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: #0c1119; }
+.order-card[data-selected='true'], .rover-card[data-selected='true'] {
+  background: #91d8cc09;
+  box-shadow: inset 3px 0 var(--accent);
+  padding-inline: 14px;
+}
+.preview-panel { margin-bottom: 24px; }
+.preview-body { padding: 24px; }
+.preview-hint { color: var(--muted); font-size: 14px; line-height: 1.6; }
+.preview-route { font-size: 18px; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
+.preview-route span { color: var(--accent); padding-inline: 6px; }
+.preview-details { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin-top: 24px; }
+.preview-details dt { color: var(--muted); font-size: 12px; line-height: 1.5; margin-bottom: 8px; }
+.preview-details dd { font: 21px/1.4 var(--mono); overflow-wrap: anywhere; }
+.preview-details dd span { color: var(--muted); font-size: 14px; }
+.preview-verdict { margin-top: 24px; padding: 14px 16px; border-left: 3px solid var(--accent); background: #91d8cc0c; color: var(--accent); font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+.preview-verdict[data-possible='false'] { border-color: #ffb18b; background: #ffb18b0c; color: #ffb18b; }
+.preview-verdict ul { margin: 8px 0 0; padding-left: 20px; }
+.preview-verdict li + li { margin-top: 4px; }
+.preview-error { color: #f1a0a0; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
 .rover-status { color: #abbaca; background: #abbaca12; }
 .rover-status[data-status='AVAILABLE'] { color: var(--accent); background: #91d8cc12; }
 .rover-status[data-status='DELIVERING'] { color: #ffb18b; background: #ffb18b12; }
@@ -126,12 +162,15 @@ h1 { margin-top: 6px; font-size: clamp(23px, 3vw, 34px); font-weight: 650; lette
   .panel-header { padding: 20px; }
   .order-list, .rover-list { padding-inline: 20px; }
   .event-list { padding-inline: 20px; }
+  .preview-body { padding: 20px; }
+  .preview-details { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
 }
 
 @media (max-width: 440px) {
   .mission-header { flex-wrap: wrap; gap: 16px; }
   .mission-header .eyebrow { font-size: 9px; }
   .state-card { padding: 24px; }
+  .preview-details { grid-template-columns: minmax(0, 1fr); gap: 16px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
