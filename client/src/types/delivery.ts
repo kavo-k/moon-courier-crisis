@@ -40,3 +40,15 @@ export type DeliveryProblemCode =
     | "INSUFFICIENT_BATTERY"
     | "GAME_NOT_ACTIVE"
     | "DAILY_LIMIT_REACHED";
+
+
+export type StartedDelivery = {
+    id: number;
+    orderId: number;
+    roverId: number;
+    distance: number;
+    batteryCost: number;
+    finalRisk: number;
+    status: "IN_PROGRESS";
+    startedAt: string;
+};

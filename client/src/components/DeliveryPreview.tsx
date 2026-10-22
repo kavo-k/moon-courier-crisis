@@ -18,7 +18,15 @@ export function DeliveryPreview({ preview }: DeliveryPreviewProps) {
             </dl>
 
             <div className="preview-verdict" data-possible={preview.possible}>
-                <p>{preview.possible ? "Доставка возможна" : `Доставка невозможна: ${preview.problems.map((problem) => { <li key={problem.code}>${problem.message}</li>})}`}</p>
+                <p>{preview.possible ? "Доставка возможна" : `Доставка невозможна`}</p>
+
+                {!preview.possible && (
+                    <ul>
+                        {preview.problems.map((problem) => (
+                            <li key={problem.code}>{problem.message}</li>
+                        ))}
+                    </ul>
+                )}
             </div>
         </div>
 
