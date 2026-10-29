@@ -52,3 +52,34 @@ export type StartedDelivery = {
     status: "IN_PROGRESS";
     startedAt: string;
 };
+
+export type DeliveryOutcome =
+    | 'SUCCESS'
+    | 'SOLAR_STORM'
+    | 'MINOR_DAMAGE'
+    | 'DELIVERY_FAILED'
+
+export type CompleteDeliveryResult = {
+    deliveryId: number;
+    outcome: DeliveryOutcome;
+    deliveryStatus: "COMPLETED" | "FAILED";
+    orderStatus: "DELIVERED" | "FAILED";
+    rewardReceived: number;
+    scoreGained: number;
+    ratingChange: number;
+    batterySpent: number;
+
+    rover: {
+        id: number;
+        battery: number;
+        status: "AVAILABLE";
+        x: number;
+        y: number;
+    };
+
+    game: {
+        money: number;
+        score: number;
+        rating: number;
+    };
+}

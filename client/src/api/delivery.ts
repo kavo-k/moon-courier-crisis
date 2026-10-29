@@ -1,4 +1,4 @@
-import type { DeliveryPreview, DeliverySelectionRequest, StartedDelivery } from "../types/delivery";
+import type { CompleteDeliveryResult, DeliveryPreview, DeliverySelectionRequest, StartedDelivery } from "../types/delivery";
 
 export async function getDeliveryPreview(
     selection: DeliverySelectionRequest,
@@ -32,6 +32,24 @@ export async function launchDelivery(
 
     if (response.ok === false) {
         throw new Error(`Не удалось запустить доставку: HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data
+}
+
+export async function completeDelivery(
+    deliveryId: number,
+): Promise<CompleteDeliveryResult> {
+    const response = await fetch(`/api/deliveries/${deliveryId}/complete`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    });
+
+    if (response.ok === false) {
+        throw new Error(`Не удалось завершить доставку: HTTP ${response.status}`);
     }
 
     const data = await response.json();

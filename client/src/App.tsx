@@ -2,7 +2,7 @@ import './App.css'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getGameSnapshot } from './api/game'
 import { useState } from 'react'
-import { getDeliveryPreview, launchDelivery } from './api/delivery'
+import { completeDelivery, getDeliveryPreview, launchDelivery } from './api/delivery'
 import { DeliveryPreview } from './components/DeliveryPreview'
 
 function App() {
@@ -38,6 +38,17 @@ function App() {
       await queryClient.invalidateQueries({ queryKey: ['delivery-preview'] });
     }
   })
+
+  const completeMutation = useMutation({
+    mutationFn: completeDelivery,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['game'] });
+      await queryClient.invalidateQueries({ queryKey: ['delivery-preview'] });
+    }
+  })
+
+  const isGameUpdating =
+    launchMutation.isPending || completeMutation.isPending
 
   if (gameQuery.isPending) {
     return (
@@ -126,7 +137,7 @@ function App() {
               <button
                 className="launch-button"
                 type="button"
-                disabled={selectedOrderId === null || selectedRoverId === null || launchMutation.isPending || getDelivery.isPending || !getDelivery.data?.possible === true}
+                disabled={isGameUpdating || selectedOrderId === null || selectedRoverId === null || launchMutation.isPending || getDelivery.isPending || !getDelivery.data?.possible === true}
                 onClick={() => {
                   if (selectedOrderId === null || selectedRoverId === null) return;
                   if (launchMutation.isPending || getDelivery.isFetching) return;
@@ -162,11 +173,35 @@ function App() {
                 <div><dt>Ровер</dt><dd>#{order.roverId}</dd></div>
                 <div><dt>Заказ</dt><dd>#{order.orderId}</dd></div>
               </dl>
+              <button className="select-button complete-button" type="button" disabled={isGameUpdating} onClick={() => completeMutation.mutate(order.id)}>
+                {completeMutation.isPending && completeMutation.variables === order.id ? 'Завершаем…' : 'Завершить доставку'}
+              </button>
             </article>
           ))}
           <p className="empty-list">Сейчас нет активных доставок.</p>
         </div>
       </section>
+      {completeMutation.isError && (
+        <section>
+          <h3 className="launch-error" role="alert">Ошибка: {completeMutation.error.message}</h3>
+        </section>
+      )}
+      {completeMutation.isSuccess && (
+        <section className="panel result-panel" data-outcome={completeMutation.data.outcome} aria-labelledby="result-title" role="status">
+          <header className="panel-header">
+            <div><span className="eyebrow">Последний результат</span><h2 id="result-title">Доставка #{completeMutation.data.deliveryId}</h2></div>
+            <span className="badge result-outcome">{completeMutation.data.outcome}</span>
+          </header>
+          <div className="preview-body">
+            <dl className="preview-details result-details">
+              <div><dt>Получено денег</dt><dd className="reward-value">${completeMutation.data.rewardReceived}</dd></div>
+              <div><dt>Получено очков</dt><dd>{completeMutation.data.scoreGained}</dd></div>
+              <div><dt>Изменение рейтинга</dt><dd>{completeMutation.data.ratingChange}</dd></div>
+              <div><dt>Потрачено батареи</dt><dd>{completeMutation.data.batterySpent}<span>%</span></dd></div>
+            </dl>
+          </div>
+        </section>
+      )}
       <div className="dashboard-grid">
         <section className="panel" aria-labelledby="orders-title">
           <header className="panel-header">
@@ -179,7 +214,7 @@ function App() {
               .map((order) => (
                 <article data-selected={selectedOrderId === order.id} className="order-card" key={order.id}>
                   <div className="card-heading">
-                    <button className="select-button" disabled={launchMutation.isPending} aria-pressed={selectedOrderId === order.id} type='button' onClick={() => { setSelectedOrderId(order.id) }}>Выбрать</button>
+                    <button className="select-button" disabled={isGameUpdating} aria-pressed={selectedOrderId === order.id} type='button' onClick={() => { setSelectedOrderId(order.id) }}>Выбрать</button>
                     <h3>{order.destination}</h3>
                     <span className="badge urgency-badge" data-urgency={order.urgency}>{order.urgency}</span>
                   </div>
@@ -201,7 +236,7 @@ function App() {
             {gameQuery.data.rovers.map((rover) => (
               <article data-selected={selectedRoverId === rover.id} className="rover-card" key={rover.id}>
                 <div className="card-heading">
-                  <button className="select-button" disabled={launchMutation.isPending} aria-pressed={selectedRoverId === rover.id} type='button' onClick={() => { setSelectedRoverId(rover.id) }}>Выбрать</button>
+                  <button className="select-button" disabled={isGameUpdating} aria-pressed={selectedRoverId === rover.id} type='button' onClick={() => { setSelectedRoverId(rover.id) }}>Выбрать</button>
                   <h3>{rover.name}</h3>
                   <span className="badge rover-status" data-status={rover.status}>{rover.status}</span>
                 </div>
@@ -231,7 +266,7 @@ function App() {
           </div>
         </section>
       </div>
-    </main>
+    </main >
   )
 }
 

@@ -140,6 +140,15 @@ h1 { margin-top: 6px; font-size: clamp(23px, 3vw, 34px); font-weight: 650; lette
 .active-delivery-details dt { color: var(--muted); font-size: 12px; }
 .active-delivery-details dd { font: 13px var(--mono); }
 .active-delivery ~ .empty-list { display: none; }
+.complete-button { margin-top: 16px; padding: 9px 13px; }
+.result-panel { margin-bottom: 24px; border-top: 2px solid var(--accent); }
+.result-panel .panel-header { flex-wrap: wrap; }
+.result-details { margin-top: 0; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.result-outcome { color: var(--accent); background: #91d8cc12; }
+.result-panel[data-outcome='SOLAR_STORM'], .result-panel[data-outcome='MINOR_DAMAGE'] { border-top-color: #e8cf8b; }
+.result-panel[data-outcome='SOLAR_STORM'] .result-outcome, .result-panel[data-outcome='MINOR_DAMAGE'] .result-outcome { color: #e8cf8b; background: #e8cf8b12; }
+.result-panel[data-outcome='DELIVERY_FAILED'] { border-top-color: #f1a0a0; }
+.result-panel[data-outcome='DELIVERY_FAILED'] .result-outcome { color: #f1a0a0; background: #f1a0a012; }
 .rover-status { color: #abbaca; background: #abbaca12; }
 .rover-status[data-status='AVAILABLE'] { color: var(--accent); background: #91d8cc12; }
 .rover-status[data-status='DELIVERING'] { color: #ffb18b; background: #ffb18b12; }
