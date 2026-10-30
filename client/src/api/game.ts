@@ -1,12 +1,10 @@
-import type { GameSnapshot } from "../types/game";
+import type { EndDayResult, GameSnapshot, GameState } from "../types/game";
+import { post, request } from "./request";
 
-export async function getGameSnapshot(): Promise<GameSnapshot> {
-    const response = await fetch('/api/game');
+export const getGameSnapshot = (signal?: AbortSignal) =>
+  request<GameSnapshot>("/game", { signal });
 
-    if (response.ok === false) {
-        throw new Error(`Не удалось загрузить игру: HTTP ${response.status}`);
-    }
+export const endDay = (expectedDay: number) =>
+  post<EndDayResult>("/game/end-day", { expectedDay });
 
-    const data = await response.json();
-    return data
-}
+export const resetGame = () => post<{ game: GameState }>("/game/reset");

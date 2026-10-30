@@ -1,57 +1,25 @@
-import type { CompleteDeliveryResult, DeliveryPreview, DeliverySelectionRequest, StartedDelivery } from "../types/delivery";
+import type {
+  CompleteDeliveryResult,
+  DeliveryPreview,
+  DeliverySelectionRequest,
+  StartedDelivery,
+} from "../types/delivery";
+import { post, request } from "./request";
 
-export async function getDeliveryPreview(
-    selection: DeliverySelectionRequest,
-): Promise<DeliveryPreview> {
-    const response = await fetch('/api/deliveries/preview', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(selection)
-    });
-
-    if (response.ok === false) {
-        throw new Error(`Не удалось загрузить игру: HTTP ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data
+export function getDeliveryPreview(
+  selection: DeliverySelectionRequest,
+  signal?: AbortSignal,
+) {
+  return request<DeliveryPreview>("/deliveries/preview", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(selection),
+    signal,
+  });
 }
 
-export async function launchDelivery(
-    selection: DeliverySelectionRequest,
-): Promise<StartedDelivery> {
-    const response = await fetch('/api/deliveries', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(selection)
-    });
+export const launchDelivery = (selection: DeliverySelectionRequest) =>
+  post<StartedDelivery>("/deliveries", selection);
 
-    if (response.ok === false) {
-        throw new Error(`Не удалось запустить доставку: HTTP ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data
-}
-
-export async function completeDelivery(
-    deliveryId: number,
-): Promise<CompleteDeliveryResult> {
-    const response = await fetch(`/api/deliveries/${deliveryId}/complete`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        }
-    });
-
-    if (response.ok === false) {
-        throw new Error(`Не удалось завершить доставку: HTTP ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data
-}
+export const completeDelivery = (deliveryId: number) =>
+  post<CompleteDeliveryResult>(`/deliveries/${deliveryId}/complete`);

@@ -5,6 +5,9 @@
   "main": "index.js",
   "scripts": {
     "test": "tsx --test tests/*.test.ts",
+    "test:integration": "tsx tests/runIntegration.ts",
+    "test:serve": "tsx tests/e2eServer.ts",
+    "test:smoke": "node scripts/smokeProduction.mjs",
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",

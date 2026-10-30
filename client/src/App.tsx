@@ -1,273 +1,486 @@
-import './App.css'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { getGameSnapshot } from './api/game'
-import { useState } from 'react'
-import { completeDelivery, getDeliveryPreview, launchDelivery } from './api/delivery'
-import { DeliveryPreview } from './components/DeliveryPreview'
+import { useState } from "react";
+import "./App.css";
+import { useGame } from "./hooks/useGame";
+import { useMissionClock } from "./hooks/useMissionClock";
+import { DeliveryPreview } from "./components/DeliveryPreview";
+import { MoonMap } from "./components/MoonMap";
+import { OrderList } from "./components/OrderList";
+import { RoverList } from "./components/RoverList";
+import { MissionLog } from "./components/MissionLog";
+import { ResetDialog } from "./components/ResetDialog";
+import { missionProgress } from "./lib/mission";
+import { money, outcomeLabels, signed } from "./lib/labels";
 
 function App() {
+  const game = useGame();
+  const [resetOpen, setResetOpen] = useState(false);
+  const now = useMissionClock(Boolean(game.snapshot?.activeDeliveries.length));
+  const snapshot = game.snapshot;
 
-  const queryClient = useQueryClient()
-
-  const gameQuery = useQuery({
-    queryKey: ['game'],
-    queryFn: getGameSnapshot,
-  })
-
-  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null)
-  const [selectedRoverId, setSelectedRoverId] = useState<number | null>(null)
-  console.log(selectedOrderId);
-  console.log(selectedRoverId);
-
-  const getDelivery = useQuery({
-    queryKey: ['delivery-preview', selectedOrderId, selectedRoverId],
-    enabled: selectedOrderId !== null && selectedRoverId !== null,
-    queryFn: async () => {
-      if (selectedOrderId === null || selectedRoverId === null) { throw new Error('Заказ или Ровер не были выбраны'); }
-      return getDeliveryPreview({ orderId: selectedOrderId, roverId: selectedRoverId })
-    }
-  })
-
-  const launchMutation = useMutation({
-    mutationFn: launchDelivery,
-    onSuccess: async () => {
-      setSelectedOrderId(null);
-      setSelectedRoverId(null);
-
-      await queryClient.invalidateQueries({ queryKey: ['game'] });
-      await queryClient.invalidateQueries({ queryKey: ['delivery-preview'] });
-    }
-  })
-
-  const completeMutation = useMutation({
-    mutationFn: completeDelivery,
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['game'] });
-      await queryClient.invalidateQueries({ queryKey: ['delivery-preview'] });
-    }
-  })
-
-  const isGameUpdating =
-    launchMutation.isPending || completeMutation.isPending
-
-  if (gameQuery.isPending) {
-    return (
-      <main className="state-screen" aria-busy="true">
-        <div className="state-card" role="status">
-          <span className="eyebrow">Moon Courier Crisis</span>
-          <span className="loading-orbit" aria-hidden="true" />
-          <h1>Загрузка игры</h1>
-          <p>Получаем состояние лунной базы…</p>
-        </div>
-      </main>
-    )
-  }
-
-  if (gameQuery.isError) {
+  if (!snapshot) {
     return (
       <main className="state-screen">
-        <div className="state-card" role="alert">
-          <span className="eyebrow">Moon Courier Crisis</span>
-          <h1>Не удалось загрузить игру</h1>
-          <p>{gameQuery.error.message}</p>
-          <button className="retry-button" type="button" onClick={() => gameQuery.refetch()}>
-            Повторить загрузку
-          </button>
+        <div className="state-card">
+          <span className="eyebrow">MOON COURIER / UPLINK</span>
+          {game.gameQuery.isError ? (
+            <>
+              <h1>Связь с базой потеряна</h1>
+              <p>{game.gameQuery.error.message}</p>
+              <button
+                type="button"
+                className="button button--primary"
+                onClick={() => void game.gameQuery.refetch()}
+              >
+                Повторить подключение
+              </button>
+            </>
+          ) : (
+            <>
+              <span className="loading-orbit" aria-hidden="true" />
+              <h1>Подключаемся к базе</h1>
+              <p role="status">Загружаем состояние экспедиции…</p>
+            </>
+          )}
         </div>
       </main>
-    )
+    );
   }
 
+  const { game: state, rules, stats, activeDeliveries } = snapshot;
+  const finished = state.status !== "ACTIVE";
+  const selectionDisabled = game.busy || finished;
+  const result = game.completeMutation.isSuccess
+    ? game.completeMutation.data
+    : null;
+  const remaining = Math.max(
+    0,
+    rules.maxDeliveriesPerDay - state.deliveriesToday,
+  );
+  const dayHint = activeDeliveries.length
+    ? "Сначала дождись возвращения связи со всеми миссиями."
+    : state.day === rules.totalDays
+      ? "Заверши последний день, чтобы подвести итоги экспедиции."
+      : `Новый день: заряд +${rules.dailyRecharge}%, возврат на базу и новые заказы.`;
+  const progress = Math.min(100, (state.money / rules.targetMoney) * 100);
 
   return (
     <main className="mission-shell">
       <header className="mission-header">
-        <div className="mission-brand">
+        <a
+          className="mission-brand"
+          href="#main-content"
+          aria-label="Moon Courier Crisis, к игровому полю"
+        >
           <span className="moon-mark" aria-hidden="true" />
-          <div>
-            <span className="eyebrow">Лунная служба доставки</span>
-            <h1>Moon Courier Crisis<span className="title-dot">.</span></h1>
-          </div>
+          <span>
+            <span className="eyebrow">LUNAR LOGISTICS DIVISION</span>
+            <h1>
+              Moon Courier<span>Crisis.</span>
+            </h1>
+          </span>
+        </a>
+        <div className="header-actions">
+          <span
+            className="connection-status"
+            data-offline={game.gameQuery.isError}
+          >
+            <i />
+            {game.gameQuery.isError ? "Нет связи" : "База на связи"}
+          </span>
+          <button
+            className="button button--ghost button--small"
+            type="button"
+            disabled={game.busy}
+            onClick={() => setResetOpen(true)}
+          >
+            Новая игра
+          </button>
         </div>
-        <span className="game-status" data-status={gameQuery.data.game.status}>{gameQuery.data.game.status}</span>
       </header>
+
       <section className="metrics" aria-label="Показатели игры">
         <div className="metric">
           <span className="metric-label">День экспедиции</span>
-          <p className="metric-value">{gameQuery.data.game.day}<span className="metric-unit"> / 5</span></p>
+          <p className="metric-value">
+            {state.day}
+            <span> / {rules.totalDays}</span>
+          </p>
+          <div className="day-dots" aria-hidden="true">
+            {Array.from({ length: rules.totalDays }, (_, index) => (
+              <i key={index} data-passed={index < state.day} />
+            ))}
+          </div>
         </div>
         <div className="metric">
           <span className="metric-label">Баланс базы</span>
-          <p className="metric-value metric-value--accent">${gameQuery.data.game.money}</p>
+          <p className="metric-value metric-value--accent">
+            {money(state.money)}
+          </p>
+          <span className="metric-note">Цель {money(rules.targetMoney)}</span>
         </div>
         <div className="metric">
-          <span className="metric-label">Очки</span>
-          <p className="metric-value">{gameQuery.data.game.score}</p>
+          <span className="metric-label">Очки экспедиции</span>
+          <p className="metric-value">{state.score.toLocaleString("ru-RU")}</p>
+          <span className="metric-note">
+            {stats.successfulDeliveries} успешных доставок
+          </span>
         </div>
         <div className="metric">
           <span className="metric-label">Рейтинг базы</span>
-          <p className="metric-value">{gameQuery.data.game.rating}<span className="metric-unit">%</span></p>
+          <p
+            className="metric-value"
+            data-danger={state.rating <= rules.minWinningRating}
+          >
+            {state.rating}
+            <span>%</span>
+          </p>
+          <span className="metric-note">
+            Для победы выше {rules.minWinningRating}%
+          </span>
         </div>
       </section>
-      <section className="panel preview-panel" aria-labelledby="preview-title">
-        <header className="panel-header">
-          <div><span className="eyebrow">Подготовка маршрута</span><h2 id="preview-title">Расчёт доставки</h2></div>
-        </header>
-        <div className="preview-body" aria-live="polite">
 
-          {selectedOrderId === null || selectedRoverId === null ? (
-            <p className="preview-hint">Выбери заказ и ровер</p>
-          ) : getDelivery.isFetching ? (
-            <p className="preview-hint" role="status">Рассчитываем маршрут…</p>
-          ) : getDelivery.isError ? (
-            <div className="preview-error" role="alert">
-              <p>{getDelivery.error.message}</p>
+      <section className="objective-strip" aria-label="Цель экспедиции">
+        <div>
+          <span className="objective-icon" aria-hidden="true">
+            ↗
+          </span>
+          <p>
+            Снабди колонию за {rules.totalDays} дней.
+            <span>
+              {" "}
+              Заработай {money(rules.targetMoney)} и сохрани рейтинг выше{" "}
+              {rules.minWinningRating}%.
+            </span>
+          </p>
+        </div>
+        <progress
+          value={progress}
+          max={100}
+          aria-label="Прогресс денежной цели"
+        >
+          {Math.round(progress)}%
+        </progress>
+      </section>
 
-              <button
-                className="retry-button"
-                type="button"
-                onClick={() => getDelivery.refetch()}
-              >
-                Повторить
-              </button>
-            </div>
-          ) : getDelivery.isSuccess ? (
+      {game.error && (
+        <div className="notice notice--error" role="alert">
+          <p>{game.error.message}</p>
+          <button
+            type="button"
+            onClick={game.dismissError}
+            aria-label="Закрыть сообщение"
+          >
+            ×
+          </button>
+        </div>
+      )}
+      {game.gameQuery.isError && (
+        <div className="notice notice--error" role="alert">
+          <p>
+            Не удалось обновить состояние базы. Показаны последние полученные
+            данные.
+          </p>
+          <button type="button" onClick={() => void game.gameQuery.refetch()}>
+            Повторить
+          </button>
+        </div>
+      )}
+
+      {finished && (
+        <section
+          className="game-finale panel"
+          data-won={state.status === "WON"}
+          aria-labelledby="finale-title"
+        >
+          <span className="eyebrow">ЭКСПЕДИЦИЯ ЗАВЕРШЕНА</span>
+          <h2 id="finale-title">
+            {state.status === "WON"
+              ? "Миссия выполнена."
+              : "Миссия не удалась."}
+          </h2>
+          <p>
+            {state.status === "WON"
+              ? "Колония обеспечена. Отличная работа, диспетчер."
+              : "Колонии не хватило ресурсов или доверия. Попробуй другую стратегию."}
+          </p>
+          <dl className="finale-stats">
             <div>
-              <DeliveryPreview preview={getDelivery.data} />
-              <button
-                className="launch-button"
-                type="button"
-                disabled={isGameUpdating || selectedOrderId === null || selectedRoverId === null || launchMutation.isPending || getDelivery.isPending || !getDelivery.data?.possible === true}
-                onClick={() => {
-                  if (selectedOrderId === null || selectedRoverId === null) return;
-                  if (launchMutation.isPending || getDelivery.isFetching) return;
-                  if (!getDelivery.isSuccess || !getDelivery.data.possible) return;
-
-                  launchMutation.mutate({
-                    orderId: selectedOrderId,
-                    roverId: selectedRoverId
-                  })
-                }}
-              >{launchMutation.isPending ? 'Запускаем…' : 'Запустить доставку'}</button>
+              <dt>Баланс</dt>
+              <dd>{money(state.money)}</dd>
             </div>
-          ) : null}
-        </div>
-      </section>
-      {launchMutation.isError && (
-        <section>
-          <h3 className="launch-error" role="alert">Ошибка: {launchMutation.error.message}</h3>
+            <div>
+              <dt>Рейтинг</dt>
+              <dd>{state.rating}%</dd>
+            </div>
+            <div>
+              <dt>Успешно</dt>
+              <dd>{stats.successfulDeliveries}</dd>
+            </div>
+            <div>
+              <dt>Потеряно</dt>
+              <dd>{stats.failedDeliveries}</dd>
+            </div>
+            <div>
+              <dt>Истекло</dt>
+              <dd>{stats.expiredOrders}</dd>
+            </div>
+          </dl>
+          <button
+            type="button"
+            className="button button--primary"
+            disabled={game.busy}
+            onClick={() => setResetOpen(true)}
+          >
+            Новая экспедиция →
+          </button>
         </section>
       )}
-      <section className="panel active-panel" aria-labelledby="active-title">
-        <header className="panel-header">
-          <div><span className="eyebrow">Миссии в пути</span><h2 id="active-title">Активные доставки</h2></div>
-        </header>
-        <div className="active-delivery-list">
-          {gameQuery.data.activeDeliveries.map((order) => (
-            <article className="active-delivery" key={order.id}>
-              <div className="active-delivery-heading">
-                <h3>Доставка #{order.id}</h3>
-                <span className="badge mission-status">{order.status}</span>
-              </div>
-              <dl className="active-delivery-details">
-                <div><dt>Ровер</dt><dd>#{order.roverId}</dd></div>
-                <div><dt>Заказ</dt><dd>#{order.orderId}</dd></div>
-              </dl>
-              <button className="select-button complete-button" type="button" disabled={isGameUpdating} onClick={() => completeMutation.mutate(order.id)}>
-                {completeMutation.isPending && completeMutation.variables === order.id ? 'Завершаем…' : 'Завершить доставку'}
-              </button>
-            </article>
-          ))}
-          <p className="empty-list">Сейчас нет активных доставок.</p>
-        </div>
-      </section>
-      {completeMutation.isError && (
-        <section>
-          <h3 className="launch-error" role="alert">Ошибка: {completeMutation.error.message}</h3>
-        </section>
-      )}
-      {completeMutation.isSuccess && (
-        <section className="panel result-panel" data-outcome={completeMutation.data.outcome} aria-labelledby="result-title" role="status">
-          <header className="panel-header">
-            <div><span className="eyebrow">Последний результат</span><h2 id="result-title">Доставка #{completeMutation.data.deliveryId}</h2></div>
-            <span className="badge result-outcome">{completeMutation.data.outcome}</span>
+
+      <div className="game-layout" id="main-content">
+        <OrderList
+          orders={snapshot.orders}
+          day={state.day}
+          selectedId={game.selectedOrder?.id}
+          disabled={selectionDisabled}
+          finished={finished}
+          onSelect={game.selectOrder}
+        />
+        <MoonMap
+          snapshot={snapshot}
+          selectedOrder={game.selectedOrder}
+          selectedRoverId={game.selectedRover?.id}
+          disabled={selectionDisabled}
+          onSelectOrder={game.selectOrder}
+          now={now}
+        />
+        <RoverList
+          rovers={snapshot.rovers}
+          selectedId={game.selectedRover?.id}
+          disabled={selectionDisabled}
+          onSelect={game.selectRover}
+        />
+      </div>
+
+      {!finished && (
+        <section
+          className="panel preview-panel"
+          aria-labelledby="preview-title"
+        >
+          <header className="panel-heading">
+            <div>
+              <span className="eyebrow">ПЛАНИРОВАНИЕ МАРШРУТА</span>
+              <h2 id="preview-title">Подготовка доставки</h2>
+            </div>
+            <span className="subtle">
+              {remaining} из {rules.maxDeliveriesPerDay} запусков осталось
+            </span>
           </header>
           <div className="preview-body">
-            <dl className="preview-details result-details">
-              <div><dt>Получено денег</dt><dd className="reward-value">${completeMutation.data.rewardReceived}</dd></div>
-              <div><dt>Получено очков</dt><dd>{completeMutation.data.scoreGained}</dd></div>
-              <div><dt>Изменение рейтинга</dt><dd>{completeMutation.data.ratingChange}</dd></div>
-              <div><dt>Потрачено батареи</dt><dd>{completeMutation.data.batterySpent}<span>%</span></dd></div>
-            </dl>
+            {!game.selectedOrder || !game.selectedRover ? (
+              <div className="preview-placeholder">
+                <span aria-hidden="true">⌖</span>
+                <div>
+                  <h3>Куда отправимся?</h3>
+                  <p>Выбери заказ слева или на карте, затем ровер справа.</p>
+                </div>
+              </div>
+            ) : game.previewQuery.isPending ? (
+              <p className="subtle" role="status">
+                Рассчитываем расстояние, энергию и риск…
+              </p>
+            ) : game.previewQuery.isError ? (
+              <div className="preview-error" role="alert">
+                <p>{game.previewQuery.error.message}</p>
+                <button
+                  type="button"
+                  className="button button--ghost button--small"
+                  disabled={game.busy}
+                  onClick={() => void game.previewQuery.refetch()}
+                >
+                  Повторить расчёт
+                </button>
+              </div>
+            ) : game.previewQuery.data ? (
+              <>
+                <DeliveryPreview preview={game.previewQuery.data} />
+                <div className="launch-row">
+                  <p className="subtle">
+                    {game.previewQuery.isFetching
+                      ? "Обновляем расчёт…"
+                      : "Исход определит база после прибытия ровера."}
+                  </p>
+                  <button
+                    type="button"
+                    className="button button--primary"
+                    disabled={!game.canLaunch}
+                    onClick={game.launch}
+                  >
+                    {game.launchMutation.isPending
+                      ? "Запускаем…"
+                      : "Запустить доставку ↗"}
+                  </button>
+                </div>
+              </>
+            ) : null}
+            {remaining === 0 && (
+              <p className="limit-hint">
+                Дневной лимит исчерпан. Заверши активные миссии и переходи к
+                следующему дню.
+              </p>
+            )}
           </div>
         </section>
       )}
-      <div className="dashboard-grid">
-        <section className="panel" aria-labelledby="orders-title">
-          <header className="panel-header">
-            <div><span className="eyebrow">Задачи экспедиции</span><h2 id="orders-title">Доступные заказы</h2></div>
-            <span className="section-number" aria-hidden="true">01</span>
+
+      {activeDeliveries.length > 0 && (
+        <section className="panel active-panel" aria-labelledby="active-title">
+          <header className="panel-heading">
+            <div>
+              <span className="eyebrow">ТРАНСПОРТ НА МАРШРУТЕ</span>
+              <h2 id="active-title">Активные доставки</h2>
+            </div>
+            <span className="subtle">Завершаются автоматически</span>
           </header>
-          <div className="order-list">
-            {gameQuery.data.orders
-              .filter((order) => order.status === 'AVAILABLE')
-              .map((order) => (
-                <article data-selected={selectedOrderId === order.id} className="order-card" key={order.id}>
-                  <div className="card-heading">
-                    <button className="select-button" disabled={isGameUpdating} aria-pressed={selectedOrderId === order.id} type='button' onClick={() => { setSelectedOrderId(order.id) }}>Выбрать</button>
-                    <h3>{order.destination}</h3>
-                    <span className="badge urgency-badge" data-urgency={order.urgency}>{order.urgency}</span>
+          <div className="active-list">
+            {activeDeliveries.map((delivery) => {
+              const order = snapshot.orders.find(
+                (item) => item.id === delivery.orderId,
+              );
+              const rover = snapshot.rovers.find(
+                (item) => item.id === delivery.roverId,
+              );
+              const percent = Math.round(missionProgress(delivery, now) * 100);
+              return (
+                <article key={delivery.id} className="active-mission">
+                  <div>
+                    <h3>
+                      {rover?.name} → {order?.destination}
+                    </h3>
+                    <p>
+                      Миссия #{delivery.id} · {delivery.distance} км ·{" "}
+                      {percent < 100 ? "В пути" : "Ожидаем отчёт базы"}
+                    </p>
                   </div>
-                  <dl className="card-details">
-                    <div><dt>Вес груза</dt><dd>{order.weight} <span>кг</span></dd></div>
-                    <div><dt>Награда</dt><dd className="reward-value">${order.reward}</dd></div>
-                  </dl>
+                  <progress
+                    value={percent}
+                    max={100}
+                    aria-label={`Доставка #${delivery.id}: ${percent}%`}
+                  >
+                    {percent}%
+                  </progress>
+                  <button
+                    type="button"
+                    className="button button--ghost button--small"
+                    disabled={game.busy || percent < 100}
+                    onClick={() => game.complete(delivery.id)}
+                  >
+                    {game.completeMutation.isPending &&
+                    game.completeMutation.variables === delivery.id
+                      ? "Получаем отчёт…"
+                      : "Повторить завершение"}
+                  </button>
                 </article>
-              ))}
-            <p className="empty-list">Сейчас нет доступных заказов.</p>
+              );
+            })}
           </div>
         </section>
-        <section className="panel" aria-labelledby="rovers-title">
-          <header className="panel-header">
-            <div><span className="eyebrow">Транспорт базы</span><h2 id="rovers-title">Роверы</h2></div>
-            <span className="section-number" aria-hidden="true">02</span>
-          </header>
-          <div className="rover-list">
-            {gameQuery.data.rovers.map((rover) => (
-              <article data-selected={selectedRoverId === rover.id} className="rover-card" key={rover.id}>
-                <div className="card-heading">
-                  <button className="select-button" disabled={isGameUpdating} aria-pressed={selectedRoverId === rover.id} type='button' onClick={() => { setSelectedRoverId(rover.id) }}>Выбрать</button>
-                  <h3>{rover.name}</h3>
-                  <span className="badge rover-status" data-status={rover.status}>{rover.status}</span>
-                </div>
-                <div className="battery-heading"><span>Батарея</span><span className="battery-value">{rover.battery}%</span></div>
-                <meter className="battery-meter" min={0} max={100} low={25} high={60} optimum={100} value={rover.battery} aria-label={`Батарея ${rover.name}`}>
-                  {rover.battery}%
-                </meter>
-                <div className="rover-capacity"><span>Грузоподъёмность</span><strong>{rover.capacity} кг</strong></div>
-              </article>
-            ))}
-            <p className="empty-list">Роверы отсутствуют.</p>
+      )}
+
+      {result && (
+        <section
+          className="panel delivery-result"
+          data-outcome={result.outcome}
+          role="status"
+        >
+          <div>
+            <span className="eyebrow">
+              ОТЧЁТ ПО МИССИИ #{result.deliveryId}
+            </span>
+            <h2>{outcomeLabels[result.outcome]}</h2>
           </div>
+          <dl>
+            <div>
+              <dt>Награда</dt>
+              <dd>{money(result.rewardReceived)}</dd>
+            </div>
+            <div>
+              <dt>Очки</dt>
+              <dd>+{result.scoreGained}</dd>
+            </div>
+            <div>
+              <dt>Рейтинг</dt>
+              <dd>{signed(result.ratingChange)}</dd>
+            </div>
+            <div>
+              <dt>Батарея</dt>
+              <dd>−{result.batterySpent}%</dd>
+            </div>
+          </dl>
         </section>
-        <section className="panel log-panel" aria-labelledby="log-title">
-          <header className="panel-header">
-            <div><span className="eyebrow">История экспедиции</span><h2 id="log-title">Журнал событий</h2></div>
-            <span className="section-number" aria-hidden="true">03</span>
-          </header>
-          <div className="event-list">
-            {gameQuery.data.recentEvents.map((event) => (
-              <article className="event-row" key={event.id}>
-                <span className="event-marker" aria-hidden="true" />
-                <div><h3 className="event-type">{event.type}</h3><p>{event.message}</p></div>
-              </article>
-            ))}
-            <p className="empty-list">Событий пока нет. Впереди первая доставка.</p>
+      )}
+
+      <div className="bottom-layout">
+        <MissionLog events={snapshot.recentEvents} />
+        <section className="panel day-panel">
+          <span className="eyebrow">СМЕНА ДИСПЕТЧЕРА</span>
+          <h2>
+            {finished
+              ? "До следующей экспедиции"
+              : `День ${state.day} / ${rules.totalDays}`}
+          </h2>
+          <p>
+            {finished
+              ? "Результаты сохранены. Новая игра доступна в любой момент."
+              : dayHint}
+          </p>
+          <div className="day-summary">
+            <span>Запусков сегодня</span>
+            <strong>
+              {state.deliveriesToday} / {rules.maxDeliveriesPerDay}
+            </strong>
           </div>
+          {!finished && (
+            <button
+              type="button"
+              className="button button--secondary"
+              disabled={!game.canEndDay}
+              onClick={game.endDay}
+            >
+              {game.endDayMutation.isPending
+                ? "Передаём смену…"
+                : state.day === rules.totalDays
+                  ? "Подвести итоги →"
+                  : "Завершить день →"}
+            </button>
+          )}
+          <details className="rules-details">
+            <summary>Правила экспедиции</summary>
+            <p>
+              Срочные заказы истекают сегодня, обычные — через день, несрочные —
+              через два. Скалы и кратеры увеличивают расход энергии и риск.
+              Тяжёлый груз требует больше батареи. Ночью роверы возвращаются на
+              базу и получают +{rules.dailyRecharge}% заряда. Доставка может
+              закончиться бурей, повреждением или потерей груза.
+            </p>
+          </details>
         </section>
       </div>
-    </main >
-  )
+      <footer className="mission-footer">
+        <span>MOON COURIER CRISIS</span>
+        <span>Одна база. Три ровера. Пять дней.</span>
+      </footer>
+      {resetOpen && (
+        <ResetDialog
+          busy={game.busy}
+          onCancel={() => setResetOpen(false)}
+          onConfirm={() => {
+            void game.reset().then(() => setResetOpen(false));
+          }}
+        />
+      )}
+    </main>
+  );
 }
 
-export default App
+export default App;

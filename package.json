@@ -1,0 +1,20 @@
+{
+  "name": "moon-courier-crisis",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "setup": "npm --prefix server ci && npm --prefix client ci",
+    "dev": "node scripts/dev.mjs",
+    "build": "npm --prefix client run build && npm --prefix server run build",
+    "start": "npm --prefix server start",
+    "check": "npm --prefix client run build && npm --prefix client run lint && npm --prefix server run typecheck && npm --prefix server test",
+    "test:integration": "npm --prefix server run test:integration",
+    "test:e2e": "npm --prefix client run test:e2e",
+    "test:smoke": "npm run build && npm --prefix server run test:smoke",
+    "db:migrate": "npm --prefix server run db:migrate",
+    "db:seed": "npm --prefix server run db:seed"
+  },
+  "engines": {
+    "node": ">=24.11.0"
+  }
+}

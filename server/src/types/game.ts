@@ -1,91 +1,97 @@
 export type GameStatus = "ACTIVE" | "WON" | "LOST";
 
-export type RoverStatus =
-    | "AVAILABLE"
-    | "DELIVERING"
-    | "CHARGING"
-    | "BROKEN";
+export type RoverStatus = "AVAILABLE" | "DELIVERING" | "CHARGING" | "BROKEN";
 
 export type OrderStatus =
-    | "AVAILABLE"
-    | "IN_DELIVERY"
-    | "DELIVERED"
-    | "FAILED"
-    | "EXPIRED";
+  | "AVAILABLE"
+  | "IN_DELIVERY"
+  | "DELIVERED"
+  | "FAILED"
+  | "EXPIRED";
 
 export type Urgency = "LOW" | "MEDIUM" | "HIGH";
 export type Terrain = "SAFE" | "ROCKY" | "CRATER";
 
 export type GameState = {
-    id: number,
-    day: number,
-    money: number,
-    score: number,
-    rating: number,
-    deliveriesToday: number,
-    status: GameStatus
-}
+  id: number;
+  day: number;
+  money: number;
+  score: number;
+  rating: number;
+  deliveriesToday: number;
+  status: GameStatus;
+};
 
 export type Rover = {
-    id: number,
-    name: string,
-    battery: number,
-    capacity: number,
-    status: RoverStatus,
-    x: number,
-    y: number
-}
+  id: number;
+  name: string;
+  battery: number;
+  capacity: number;
+  status: RoverStatus;
+  x: number;
+  y: number;
+};
 
 export type Order = {
-    id: number,
-    destination: string,
-    x: number,
-    y: number,
-    weight: number,
-    reward: number,
-    urgency: Urgency,
-    baseRisk: number,
-    terrain: Terrain,
-    status: OrderStatus,
-    expiresDay: number
-}
+  id: number;
+  destination: string;
+  x: number;
+  y: number;
+  weight: number;
+  reward: number;
+  urgency: Urgency;
+  baseRisk: number;
+  terrain: Terrain;
+  status: OrderStatus;
+  expiresDay: number;
+};
 
 export type Delivery = {
-    id: number;
-    orderId: number;
-    roverId: number;
-    distance: number;
-    batteryCost: number;
-    finalRisk: number;
-    status: "IN_PROGRESS" | "COMPLETED" | "FAILED";
-    startedAt: Date;
-}
+  id: number;
+  orderId: number;
+  roverId: number;
+  distance: number;
+  batteryCost: number;
+  finalRisk: number;
+  status: "IN_PROGRESS" | "COMPLETED" | "FAILED";
+  startedAt: Date;
+};
 
 export type GameSnapshot = {
-    game: GameState;
-    rovers: Rover[];
-    orders: Order[];
-    activeDeliveries: Delivery[];
-    recentEvents: GameEvent[];
-    stats: GameStats;
+  rules: GameRules;
+  game: GameState;
+  rovers: Rover[];
+  orders: Order[];
+  activeDeliveries: Delivery[];
+  recentEvents: GameEvent[];
+  stats: GameStats;
 };
 
 export type EndDayResult = {
-    game: GameState;
-    expiredOrderIds: number[];
-    createdOrderIds: number[];
+  game: GameState;
+  expiredOrderIds: number[];
+  createdOrderIds: number[];
+};
+
+export type GameRules = {
+  totalDays: number;
+  targetMoney: number;
+  minWinningRating: number;
+  maxDeliveriesPerDay: number;
+  dailyRecharge: number;
+  basePosition: { x: number; y: number };
 };
 
 export type GameEvent = {
-    id: number;
-    deliveryId: number | null;
-    type: string;
-    message: string;
-    createdAt: Date;
+  id: number;
+  deliveryId: number | null;
+  type: string;
+  message: string;
+  createdAt: Date;
 };
 
 export type GameStats = {
-    successfulDeliveries: number;
-    failedDeliveries: number;
-    expiredOrders: number;
+  successfulDeliveries: number;
+  failedDeliveries: number;
+  expiredOrders: number;
 };

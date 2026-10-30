@@ -2,7 +2,6 @@ import type { Request, Response, NextFunction } from "express";
 import { HttpError } from "../errors/httpError.js";
 import { isDeliverySelectionRequest } from "../schemas/deliverySchemas.js";
 import { completeDelivery, createDeliveryPreview, launchDelivery } from "../services/deliveryService.js";
-import type { DeliveryOutcome } from "../domain/deliveryRules.js";
 
 export async function deliveryPreview(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
